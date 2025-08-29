@@ -25,7 +25,7 @@ namespace Tiled.World
             {
                 for(int y = 0; y < height; y++)
                 {
-                    tiles[x, y] = (y > height / 2)? (ETileType)Random.Shared.Next((int)ETileType.MAX): ETileType.AIR;
+                    tiles[x, y] = (y > ((height / 2) + Random.Shared.Next(100) - 50))? (ETileType)Random.Shared.Next((int)ETileType.MAX): ETileType.AIR;
                 }
             }
         }
