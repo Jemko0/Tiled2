@@ -54,28 +54,31 @@ namespace Tiled
             System.Diagnostics.Debug.WriteLine("DELTA: " + delta);
             System.Diagnostics.Debug.WriteLine("FPS: " + 1.0f / delta);
 
+            float cameraSpeed = 1024.0f;
+            float zoom = GameState.Instance.GetActiveCamera().zoom;
+
             if (Keyboard.GetState().IsKeyDown(Keys.W))
             {
                 Rendering.Camera c = GameState.Instance.GetActiveCamera();
-                c.position.Y -= 32 * delta;
+                c.position.Y -= cameraSpeed / zoom * delta;
             }
 
             if (Keyboard.GetState().IsKeyDown(Keys.S))
             {
                 Rendering.Camera c = GameState.Instance.GetActiveCamera();
-                c.position.Y += 32 * delta;
+                c.position.Y += cameraSpeed / zoom * delta;
             }
 
             if (Keyboard.GetState().IsKeyDown(Keys.A))
             {
                 Rendering.Camera c = GameState.Instance.GetActiveCamera();
-                c.position.X -= 32 * delta;
+                c.position.X -= cameraSpeed / zoom * delta;
             }
 
             if (Keyboard.GetState().IsKeyDown(Keys.D))
             {
                 Rendering.Camera c = GameState.Instance.GetActiveCamera();
-                c.position.X += 32 * delta;
+                c.position.X += cameraSpeed / zoom * delta;
             }
 
             if (Keyboard.GetState().IsKeyDown(Keys.Add))

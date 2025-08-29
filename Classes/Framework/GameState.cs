@@ -58,7 +58,7 @@ namespace Tiled.Framework
         public void CreateTileMap()
         {
             currentTilemap = new Tilemap();
-            currentTilemap.Initialize(1024, 1024);
+            currentTilemap.Initialize(8400, 2400);
         }
     }
 }
