@@ -34,6 +34,26 @@ namespace Tiled
         public int y;
     }
 
+    public struct int4
+    {
+        public int4(int x, int y, int z, int w)
+        {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.w = w;
+        }
+
+        public static int4 copy(ref int4 other)
+        {
+            return new int4(other.x, other.y, other.z, other.w);
+        }
+
+        public int x;
+        public int y;
+        public int z;
+        public int w;
+    }
     public struct FTile
     {
         public ETileType type;

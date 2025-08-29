@@ -30,6 +30,13 @@ namespace Tiled
             mainRenderer = new Renderer();
             mainRenderer.Init(ref spriteBatch, ref gdm, Content);
             mainRenderer.InitializeTileBuffers();
+
+            Window.ClientSizeChanged += Window_ClientSizeChanged;
+        }
+
+        private void Window_ClientSizeChanged(object sender, EventArgs e)
+        {
+            mainRenderer.CalculateViewport(this);
         }
 
         protected override void LoadContent()

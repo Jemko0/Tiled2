@@ -9,9 +9,15 @@ using System.Text;
 using System.Threading.Tasks;
 using Tiled;
 using Tiled.Framework;
+using Tiled.World;
 
 namespace Tiled2.Rendering
 {
+    public struct RendererState
+    {
+        public Rectangle ViewportBounds;
+    }
+
     public class Renderer
     {
         public Renderer() { }
@@ -20,6 +26,7 @@ namespace Tiled2.Rendering
         public static SpriteBatch spriteBatch;
         public static GraphicsDeviceManager graphicsDeviceManager;
         public static ContentManager content;
+        public static RendererState state;
 
         //shaders
         public Effect baseTileShader;
@@ -28,6 +35,8 @@ namespace Tiled2.Rendering
 
         public void Init(ref SpriteBatch s, ref GraphicsDeviceManager gdm, ContentManager contentMgr)
         {
+            state = new RendererState();
+
             spriteBatch = s;
             graphicsDeviceManager = gdm;
             graphicsDevice = gdm.GraphicsDevice;
@@ -37,11 +46,18 @@ namespace Tiled2.Rendering
             pixelTexture.SetData(new[] { Color.White });
 
             baseTileShader = content.Load<Effect>("Shaders/BaseTileShader");
+            //baseLightingShader = content.Load<Effect>("Shaders/BaseLightingShader");
+        }
+
+        public void CalculateViewport(Game g)
+        {
+            state.ViewportBounds = g.Window.ClientBounds;
         }
 
         public void Render()
         {
             RenderTiles();
+            RenderLighting();
         }
 
         public static Matrix GetWorldViewProjection()
@@ -85,7 +101,6 @@ namespace Tiled2.Rendering
 
         public void InitializeTileBuffers()
         {
-            // Create base quad vertices (using triangle list instead of triangle strip)
             VertexPositionTexture[] baseVertices = new VertexPositionTexture[]
             {
                 new VertexPositionTexture(new Vector3(0, 0, 0), new Vector2(0, 0)),           // Top-left
@@ -107,38 +122,50 @@ namespace Tiled2.Rendering
             indexBuffer = new IndexBuffer(graphicsDevice, IndexElementSize.SixteenBits, 6, BufferUsage.WriteOnly);
             indexBuffer.SetData(indices);
 
-            // Get tilemap dimensions
             var tilemap = GameState.Instance.currentTilemap.tiles;
-            int width = tilemap.GetLength(0);
-            int height = tilemap.GetLength(1);
-            // Get actual tile count after initialization
-            actualTileCount = width * height;
+            int4 bounds = Tilemap.GetTileIndicesInActiveCamera();
+            tileInstances = new InstanceData[bounds.z * bounds.w];
 
-            // Create instance data from actual tilemap
-            tileInstances = new InstanceData[actualTileCount];
-            int index = 0;
-
-            for (int x = 0; x < width; x++)
+            if(bounds.z <= 0 || bounds.w <= 0)
             {
-                for (int y = 0; y < height; y++)
+                return;
+            }
+
+            System.Diagnostics.Debug.WriteLine("FRUSTUM TILES: " + bounds.x, bounds.y, bounds.z, bounds.w);
+
+            int index = 0;
+            for (int x = bounds.x; x < bounds.x + bounds.z; x++)
+            {
+                for (int y = bounds.y; y < bounds.y + bounds.w; y++)
                 {
+                    if(!Utility.UtilityLibrary.IsValidIndex(tilemap, [x, y]))
+                    {
+                        continue;
+                    }
+
                     ETileType tileType = tilemap[x, y];
 
                     tileInstances[index] = new InstanceData
                     {
                         Position = new Vector2(x * TILE_SIZE, y * TILE_SIZE),
-                        Data = new Vector4((float)tileType, x, y, 0) // tile type, grid coords
+                        Data = new Vector4((float)tileType, x, y, 0)
                     };
                     index++;
                 }
             }
 
-            instanceBuffer = new VertexBuffer(graphicsDevice, typeof(InstanceData), actualTileCount, BufferUsage.WriteOnly);
+            instanceBuffer = new VertexBuffer(graphicsDevice, typeof(InstanceData), tileInstances.Length, BufferUsage.WriteOnly);
             instanceBuffer.SetData(tileInstances);
         }
 
         public void RenderTiles()
-        {
+        {      
+            InitializeTileBuffers();
+            if(instanceBuffer == null)
+            {
+                return;
+            }
+
             graphicsDevice.SetVertexBuffers(
                 new VertexBufferBinding(baseVertexBuffer, 0, 0),
                 new VertexBufferBinding(instanceBuffer, 0, 1)
@@ -150,7 +177,12 @@ namespace Tiled2.Rendering
             baseTileShader.Parameters["WorldViewProjection"]?.SetValue(GetWorldViewProjection());
 
             baseTileShader.CurrentTechnique.Passes[0].Apply();
-            graphicsDevice.DrawInstancedPrimitives(PrimitiveType.TriangleList, 0, 0, 4, 0, 2, actualTileCount);
+            graphicsDevice.DrawInstancedPrimitives(PrimitiveType.TriangleList, 0, 0, 4, 0, 2, tileInstances.Length);
+        }
+
+        public void RenderLighting()
+        {
+
         }
 
         #endregion
