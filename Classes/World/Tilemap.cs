@@ -45,8 +45,8 @@ namespace Tiled.World
             int tilesHeight = (int)(Renderer.state.ViewportBounds.Height / (16 * camZoom));
 
             //top left most tile
-            int tileX = (int)(camPos.X / 16) - tilesWidth / 2;
-            int tileY = (int)(camPos.Y / 16) - tilesHeight / 2;
+            int tileX = (int)(camPos.X / 16);
+            int tileY = (int)(camPos.Y / 16);
 
             return new int4(tileX, tileY, tilesWidth, tilesHeight);
         }
