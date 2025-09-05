@@ -1,11 +1,4 @@
-﻿using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Tiled.Framework;
+﻿using System;
 
 namespace Tiled.World
 {
@@ -15,7 +8,7 @@ namespace Tiled.World
 
         public ETileType[,] tiles;
         public uint[,] lightmap;
-
+        public const int TILESIZE = 16;
         public void Initialize(uint width, uint height)
         {
             tiles = new ETileType[width, height];

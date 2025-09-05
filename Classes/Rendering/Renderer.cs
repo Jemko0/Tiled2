@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Tiled;
 using Tiled.Framework;
+using Tiled2.Framework.Gameplay;
 
 namespace Tiled2.Rendering
 {
@@ -23,6 +24,7 @@ namespace Tiled2.Rendering
 
         //shaders
         public Effect baseTileShader;
+        public Effect entityShader;
 
         Texture2D pixelTexture;
 
@@ -37,11 +39,13 @@ namespace Tiled2.Rendering
             pixelTexture.SetData(new[] { Color.White });
 
             baseTileShader = content.Load<Effect>("Shaders/BaseTileShader");
+            entityShader = content.Load<Effect>("Shaders/EntityShader");
         }
 
         public void Render()
         {
             RenderTiles();
+            RenderEntities();
         }
 
         public static Matrix GetWorldViewProjection()
@@ -154,5 +158,20 @@ namespace Tiled2.Rendering
         }
 
         #endregion
+
+        public void RenderEntities()
+        {
+            Matrix transformMatrix = GetWorldViewProjection();
+
+            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null, null, transformMatrix);
+
+            for (int i = 0; i < GameState.Instance.entities.Count; i++)
+            {
+                Entity e = GameState.Instance.entities[i];
+                spriteBatch.Draw(pixelTexture, e.transform.position, Color.White);
+            }
+
+            spriteBatch.End();
+        }
     }
 }

@@ -1,6 +1,8 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Tiled.Rendering;
 using Tiled.World;
+using Tiled2.Framework.Gameplay;
 
 namespace Tiled.Framework
 {
@@ -11,6 +13,7 @@ namespace Tiled.Framework
         private static Camera activeCamera;
         public Tilemap currentTilemap;
         public bool initialized = false;
+        public List<Entity> entities = new List<Entity>();
 
         private GameState() { }
 
@@ -55,10 +58,26 @@ namespace Tiled.Framework
             activeCamera.SetPosition(new Microsoft.Xna.Framework.Vector2(0, 0));
         }
 
+        public void AddEntity(ref Entity e)
+        {
+            if(e != null)
+            {
+                entities.Add(e);
+            }
+        }
+
+        public void RemoveEntity(ref Entity e)
+        {
+            if(e != null)
+            {
+                entities.Remove(e);
+            }
+        }
+
         public void CreateTileMap()
         {
             currentTilemap = new Tilemap();
-            currentTilemap.Initialize(8400, 2400);
+            currentTilemap.Initialize(500, 500);
         }
     }
 }
