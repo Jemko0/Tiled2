@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Tiled.Rendering;
 using Tiled.World;
 using Tiled2.Framework.Gameplay;
+using Tiled2.Framework.Gameplay.Entities;
 
 namespace Tiled.Framework
 {
@@ -45,6 +46,9 @@ namespace Tiled.Framework
             CreateCamera();
             CreateTileMap();
             initialized = true;
+
+            MovingEntity e = Entity.Create<MovingEntity>();
+            AddEntity(e);
         }
 
         public void CreateCamera()
@@ -58,7 +62,7 @@ namespace Tiled.Framework
             activeCamera.SetPosition(new Microsoft.Xna.Framework.Vector2(0, 0));
         }
 
-        public void AddEntity(ref Entity e)
+        public void AddEntity(Entity e)
         {
             if(e != null)
             {
@@ -66,7 +70,7 @@ namespace Tiled.Framework
             }
         }
 
-        public void RemoveEntity(ref Entity e)
+        public void RemoveEntity(Entity e)
         {
             if(e != null)
             {

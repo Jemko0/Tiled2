@@ -15,6 +15,9 @@ namespace Tiled2.Framework.Gameplay
         public virtual void Initialize()
         {
             components = new List<Component>();
+            transform = new TransformComponent(this);
+            transform.SetScale(new Microsoft.Xna.Framework.Vector2(15f, 15f));
+            RegisterComponents([transform]);
         }
 
         public void Update()
@@ -57,6 +60,14 @@ namespace Tiled2.Framework.Gameplay
 
             components.Clear();
             GC.Collect();
+        }
+
+        public static T Create<T>() where T : Entity
+        {
+            T entity = (T)Activator.CreateInstance(typeof(T));
+            entity.Initialize();
+
+            return entity;
         }
     }
 }

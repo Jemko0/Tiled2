@@ -26,7 +26,21 @@ namespace Tiled2.Rendering
         public Effect baseTileShader;
         public Effect entityShader;
 
+        public RenderTarget2D lightingRT;
+
         Texture2D pixelTexture;
+
+        // Optimized tile rendering members
+        private VertexBuffer baseVertexBuffer;
+        private DynamicVertexBuffer instanceBuffer; // Changed to dynamic for frequent updates
+        private IndexBuffer indexBuffer;
+        private InstanceData[] visibleTileInstances;
+        private int maxVisibleTiles;
+        private const int TILE_SIZE = 16;
+
+        // View culling parameters
+        private Rectangle lastViewBounds = Rectangle.Empty;
+        private bool needsBufferUpdate = true;
 
         public void Init(ref SpriteBatch s, ref GraphicsDeviceManager gdm, ContentManager contentMgr)
         {
@@ -40,10 +54,14 @@ namespace Tiled2.Rendering
 
             baseTileShader = content.Load<Effect>("Shaders/BaseTileShader");
             entityShader = content.Load<Effect>("Shaders/EntityShader");
+            lightingRT = new RenderTarget2D(graphicsDevice, 1024, 1024);
+
+            InitializeTileBuffers();
         }
 
         public void Render()
         {
+            UpdateVisibleTiles();
             RenderTiles();
             RenderEntities();
         }
@@ -80,16 +98,9 @@ namespace Tiled2.Rendering
             VertexDeclaration IVertexType.VertexDeclaration => VertexDeclaration;
         }
 
-        private VertexBuffer baseVertexBuffer;
-        private VertexBuffer instanceBuffer;
-        private IndexBuffer indexBuffer;
-        private InstanceData[] tileInstances;
-        private int actualTileCount;
-        private const int TILE_SIZE = 16;
-
         public void InitializeTileBuffers()
         {
-            // Create base quad vertices (using triangle list instead of triangle strip)
+            // Create base quad vertices
             VertexPositionTexture[] baseVertices = new VertexPositionTexture[]
             {
                 new VertexPositionTexture(new Vector3(0, 0, 0), new Vector2(0, 0)),           // Top-left
@@ -111,38 +122,99 @@ namespace Tiled2.Rendering
             indexBuffer = new IndexBuffer(graphicsDevice, IndexElementSize.SixteenBits, 6, BufferUsage.WriteOnly);
             indexBuffer.SetData(indices);
 
-            // Get tilemap dimensions
-            var tilemap = GameState.Instance.currentTilemap.tiles;
-            int width = tilemap.GetLength(0);
-            int height = tilemap.GetLength(1);
-            // Get actual tile count after initialization
-            actualTileCount = width * height;
+            // Estimate maximum visible tiles based on screen size and minimum zoom
+            float minZoom = 0.1f; // Adjust based on your game's minimum zoom level
+            int screenTilesX = (int)Math.Ceiling(graphicsDevice.Viewport.Width / (TILE_SIZE * minZoom)) + 2; // +2 for safety margin
+            int screenTilesY = (int)Math.Ceiling(graphicsDevice.Viewport.Height / (TILE_SIZE * minZoom)) + 2;
+            maxVisibleTiles = screenTilesX * screenTilesY;
 
-            // Create instance data from actual tilemap
-            tileInstances = new InstanceData[actualTileCount];
-            int index = 0;
+            // Create dynamic instance buffer for visible tiles only
+            visibleTileInstances = new InstanceData[maxVisibleTiles];
+            instanceBuffer = new DynamicVertexBuffer(graphicsDevice, typeof(InstanceData), maxVisibleTiles, BufferUsage.WriteOnly);
+        }
 
-            for (int x = 0; x < width; x++)
+        private Rectangle GetViewBounds()
+        {
+            var camera = GameState.Instance.GetActiveCamera();
+            float camX = camera.position.X;
+            float camY = camera.position.Y;
+            float camZoom = camera.zoom;
+
+            // Calculate world space bounds of what's visible on screen
+            int viewWidth = (int)(graphicsDevice.Viewport.Width / camZoom);
+            int viewHeight = (int)(graphicsDevice.Viewport.Height / camZoom);
+
+            // Add margin for tiles that are partially visible
+            int margin = TILE_SIZE * 2;
+
+            return new Rectangle(
+                (int)(camX - margin),
+                (int)(camY - margin),
+                viewWidth + margin * 2,
+                viewHeight + margin * 2
+            );
+        }
+
+        private void UpdateVisibleTiles()
+        {
+            Rectangle currentViewBounds = GetViewBounds();
+
+            // Only update if the view has changed significantly
+            if (currentViewBounds != lastViewBounds)
             {
-                for (int y = 0; y < height; y++)
+                lastViewBounds = currentViewBounds;
+                needsBufferUpdate = true;
+            }
+
+            if (!needsBufferUpdate) return;
+
+            var tilemap = GameState.Instance.currentTilemap.tiles;
+            int tilemapWidth = tilemap.GetLength(0);
+            int tilemapHeight = tilemap.GetLength(1);
+
+            // Convert view bounds to tile coordinates
+            int startX = Math.Max(0, currentViewBounds.Left / TILE_SIZE);
+            int endX = Math.Min(tilemapWidth - 1, currentViewBounds.Right / TILE_SIZE);
+            int startY = Math.Max(0, currentViewBounds.Top / TILE_SIZE);
+            int endY = Math.Min(tilemapHeight - 1, currentViewBounds.Bottom / TILE_SIZE);
+
+            int visibleTileCount = 0;
+
+            // Only loop through visible tiles
+            for (int x = startX; x <= endX && visibleTileCount < maxVisibleTiles; x++)
+            {
+                for (int y = startY; y <= endY && visibleTileCount < maxVisibleTiles; y++)
                 {
                     ETileType tileType = tilemap[x, y];
 
-                    tileInstances[index] = new InstanceData
+                    // Skip empty/air tiles if desired
+                    if (tileType == ETileType.AIR) continue;
+
+                    visibleTileInstances[visibleTileCount] = new InstanceData
                     {
                         Position = new Vector2(x * TILE_SIZE, y * TILE_SIZE),
-                        Data = new Vector4((float)tileType, x, y, 0) // tile type, grid coords
+                        Data = new Vector4((float)tileType, x, y, 0)
                     };
-                    index++;
+                    visibleTileCount++;
                 }
             }
 
-            instanceBuffer = new VertexBuffer(graphicsDevice, typeof(InstanceData), actualTileCount, BufferUsage.WriteOnly);
-            instanceBuffer.SetData(tileInstances);
+            // Update the instance buffer with only visible tiles
+            if (visibleTileCount > 0)
+            {
+                instanceBuffer.SetData(visibleTileInstances, 0, visibleTileCount, SetDataOptions.Discard);
+            }
+
+            actualTileCount = visibleTileCount;
+            needsBufferUpdate = false;
         }
+
+        private int actualTileCount = 0;
 
         public void RenderTiles()
         {
+            if (actualTileCount == 0) return; // Nothing to render
+
             graphicsDevice.SetVertexBuffers(
                 new VertexBufferBinding(baseVertexBuffer, 0, 0),
                 new VertexBufferBinding(instanceBuffer, 0, 1)
@@ -161,17 +233,36 @@ namespace Tiled2.Rendering
 
         public void RenderEntities()
         {
-            Matrix transformMatrix = GetWorldViewProjection();
+            entityShader.Parameters["WorldViewProjection"]?.SetValue(GetWorldViewProjection());
+            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null, entityShader);
 
-            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, null, null, null, transformMatrix);
+            // Also cull entities that are outside the view
+            Rectangle viewBounds = GetViewBounds();
 
             for (int i = 0; i < GameState.Instance.entities.Count; i++)
             {
                 Entity e = GameState.Instance.entities[i];
-                spriteBatch.Draw(pixelTexture, e.transform.position, Color.White);
+                Rectangle entityBounds = new Rectangle(
+                    (int)e.transform.position.X,
+                    (int)e.transform.position.Y,
+                    (int)e.transform.scale.X,
+                    (int)e.transform.scale.Y
+                );
+
+                // Only render entities that intersect with the view
+                if (viewBounds.Intersects(entityBounds))
+                {
+                    spriteBatch.Draw(pixelTexture, entityBounds, Color.White);
+                }
             }
 
             spriteBatch.End();
+        }
+
+        // Call this when the tilemap changes to force an update
+        public void ForceBufferUpdate()
+        {
+            needsBufferUpdate = true;
         }
     }
 }
